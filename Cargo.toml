@@ -1,0 +1,6 @@
+[package]
+name = "snek"
+version = "0.1.0"
+authors = ["niels <i.am@nilq.dk>"]
+
+[dependencies]
