@@ -3,11 +3,10 @@ use super::super::error::Response::*;
 
 
 macro_rules! token {
-  ($tokenizer:expr, $token_type:ident, $accum:expr, $lines:expr) => {{
-    token!($tokenizer, TokenType::$token_type, $accum, $lines)
+  ($tokenizer:expr, $token_type:ident, $accum:expr) => {{
+    token!($tokenizer, TokenType::$token_type, $accum)
   }};
-
-  ($tokenizer:expr, $token_type:expr, $accum:expr, $lines:expr) => {{
+  ($tokenizer:expr, $token_type:expr, $accum:expr) => {{
     let tokenizer  = $tokenizer  as &$crate::snek::lexer::tokenizer::Tokenizer<'t>;
     let token_type = $token_type as $crate::snek::lexer::token::TokenType;
 
@@ -17,10 +16,10 @@ macro_rules! token {
 
     let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap());
 
-    if TokenType::String == token_type || TokenType::Char == token_type {
-      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len() + 2), &accum, $lines) // delimeters
+    if TokenType::Str == token_type || TokenType::Char == token_type {
+      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len() + 2), &accum) // delimeters
     } else {
-      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum, $lines)
+      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum)
     }
   }};
 }
@@ -28,7 +27,7 @@ macro_rules! token {
 
 
 pub trait Matcher<'t> {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()>;
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()>;
 }
 
 
@@ -36,7 +35,7 @@ pub trait Matcher<'t> {
 pub struct CommentMatcher;
 
 impl<'t> Matcher<'t> for CommentMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     if tokenizer.peek_range(3).unwrap_or_else(String::new) == "---" {
       tokenizer.advance_n(3);
 
@@ -49,14 +48,14 @@ impl<'t> Matcher<'t> for CommentMatcher {
         tokenizer.advance()
       }
 
-      Ok(Some(token!(tokenizer, EOL, "\n".into(), lines)))
+      Ok(Some(token!(tokenizer, EOL, "\n".into())))
 
     } else if tokenizer.peek_range(2).unwrap_or_else(String::new) == "--" {
       while !tokenizer.end() && tokenizer.peek() != Some('\n') {
         tokenizer.advance()
       }
 
-      Ok(Some(token!(tokenizer, EOL, "\n".into(), lines)))
+      Ok(Some(token!(tokenizer, EOL, "\n".into())))
     } else {
       Ok(None)
     }
@@ -80,7 +79,7 @@ impl ConstantStringMatcher {
 }
 
 impl<'t> Matcher<'t> for ConstantStringMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     for constant in self.constants {
       let len = constant.len();
       let c   = match tokenizer.peek_range(len) {
@@ -91,7 +90,7 @@ impl<'t> Matcher<'t> for ConstantStringMatcher {
       if c == *constant {
         tokenizer.advance_n(len);
 
-        let token = token!(tokenizer, self.token_type.clone(), constant.to_string(), lines);
+        let token = token!(tokenizer, self.token_type.clone(), constant.to_string());
 
         if c == "\n" {
           tokenizer.pos.0 += 1;
@@ -122,14 +121,14 @@ impl ConstantCharMatcher {
 }
 
 impl<'t> Matcher<'t> for ConstantCharMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     let c = tokenizer.peek().unwrap();
     
     for constant in self.constants {
       if c == *constant {
         tokenizer.advance();
 
-        let token = token!(tokenizer, self.token_type.clone(), constant.to_string(), lines);
+        let token = token!(tokenizer, self.token_type.clone(), constant.to_string());
 
         if c == '\n' {
           tokenizer.pos.0 += 1;
@@ -145,26 +144,10 @@ impl<'t> Matcher<'t> for ConstantCharMatcher {
 
 
 
-pub struct WhitespaceMatcher;
-
-impl<'t> Matcher<'t> for WhitespaceMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
-    let string = tokenizer.collect_while(|c| c.is_whitespace() && c != '\n');
-
-    if !string.is_empty() {
-      Ok(Some(token!(tokenizer, Whitespace, string, lines)))
-    } else {
-      Ok(None)
-    }
-  }
-}
-
-
-
 pub struct StringLiteralMatcher;
 
 impl<'t> Matcher<'t> for StringLiteralMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     let mut raw_marker = false;
 
     let mut pos = tokenizer.pos;
@@ -268,7 +251,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
     tokenizer.advance();
     
     if delimeter == '"' {
-      Ok(Some(token!(tokenizer, String, string, lines)))
+      Ok(Some(token!(tokenizer, Str, string)))
     } else {
       if string.len() > 1 {
         let pos = tokenizer.last_position();
@@ -284,7 +267,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
           )
         )
       } else {
-        Ok(Some(token!(tokenizer, Char, string, lines)))
+        Ok(Some(token!(tokenizer, Char, string)))
       }
     }
   }
@@ -295,7 +278,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
 pub struct IdentifierMatcher;
 
 impl<'t> Matcher<'t> for IdentifierMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
       return Ok(None)
     }
@@ -305,7 +288,7 @@ impl<'t> Matcher<'t> for IdentifierMatcher {
     if accum.is_empty() {
       Ok(None)
     } else {
-      Ok(Some(token!(tokenizer, Identifier, accum, lines)))
+      Ok(Some(token!(tokenizer, Identifier, accum)))
     }
   }
 }
@@ -314,7 +297,7 @@ impl<'t> Matcher<'t> for IdentifierMatcher {
 pub struct NumberLiteralMatcher;
 
 impl<'t> Matcher<'t> for NumberLiteralMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     let mut accum = String::new();
 
     let curr = tokenizer.next().unwrap();
@@ -358,14 +341,14 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
           Err(error) => panic!("unable to parse float: {}", error)
         };
 
-        Ok(Some(token!(tokenizer, Float, accum, lines)))
+        Ok(Some(token!(tokenizer, Double, accum)))
       } else {
         let literal: String = match accum.parse::<i64>() {
           Ok(result) => result.to_string(),
           Err(error) => panic!("unable to parse int: {}", error)
         };
 
-        Ok(Some(token!(tokenizer, Int, accum, lines)))
+        Ok(Some(token!(tokenizer, Int, accum)))
       }
     }
   }
@@ -386,7 +369,7 @@ impl KeyMatcher {
 }
 
 impl<'t> Matcher<'t> for KeyMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     for constant in self.constants {
       if let Some(s) = tokenizer.peek_range(constant.len()) {
         if s == *constant {
@@ -397,7 +380,7 @@ impl<'t> Matcher<'t> for KeyMatcher {
           }
 
           tokenizer.advance_n(constant.len());
-          return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string(), lines)))
+          return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
         }
       }
     }
@@ -411,13 +394,13 @@ impl<'t> Matcher<'t> for KeyMatcher {
 pub struct EOLMatcher;
 
 impl<'t> Matcher<'t> for EOLMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>, lines: &'t Vec<String>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     if tokenizer.peek() == Some('\n') {
       tokenizer.pos.0 += 1;
       tokenizer.pos.1 = 0;
       tokenizer.index += 1;
 
-      Ok(Some(token!(tokenizer, TokenType::EOL, String::from("\n"), lines)))
+      Ok(Some(token!(tokenizer, TokenType::EOL, String::from("\n"))))
     } else {
       Ok(None)
     }

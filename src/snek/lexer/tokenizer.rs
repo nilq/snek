@@ -24,12 +24,10 @@ pub struct Tokenizer<'t> {
   pub items:     Vec<char>,
   pub source:    &'t Source,
   pub snapshots: Vec<Snapshot>
-
-  lines: &'t Vec<String>,
 }
 
 impl<'t> Tokenizer<'t> {
-  pub fn new(items: Vec<char>, source: &'t Source, lines: &'t Vec<String>) -> Self {
+  pub fn new(items: Vec<char>, source: &'t Source) -> Self {
     Tokenizer {
       pos: (1, 0),
 
@@ -37,8 +35,6 @@ impl<'t> Tokenizer<'t> {
       source,
       index:     0,
       snapshots: Vec::new(),
-
-      lines,
     }
   }
 
@@ -115,7 +111,7 @@ impl<'t> Tokenizer<'t> {
 
     self.take_snapshot();
 
-    match matcher.try_match(self, self.lines)? {
+    match matcher.try_match(self)? {
       Some(t) => {
         self.commit_snapshot();
         Ok(Some(t))

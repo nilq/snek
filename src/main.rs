@@ -1,3 +1,5 @@
+extern crate colored;
+
 mod snek;
 use snek::lexer::*;
 
