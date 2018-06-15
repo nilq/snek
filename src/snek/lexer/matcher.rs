@@ -406,3 +406,19 @@ impl<'t> Matcher<'t> for EOLMatcher {
     }
   }
 }
+
+
+
+pub struct WhitespaceMatcher;
+
+impl<'t> Matcher<'t> for WhitespaceMatcher {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    let string = tokenizer.collect_while(|c| c.is_whitespace() && c != '\n');
+
+    if !string.is_empty() {
+      Ok(Some(token!(tokenizer, Whitespace, string)))
+    } else {
+      Ok(None)
+    }
+  }
+}

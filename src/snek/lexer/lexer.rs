@@ -33,7 +33,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "struct", "fun", "funky"
+          "->", "struct", "fun", "funky"
         ])
       )
     );
@@ -46,6 +46,7 @@ impl<'l> Lexer<'l> {
 
     lexer.matchers.push(Rc::new(IdentifierMatcher));
     lexer.matchers.push(Rc::new(NumberLiteralMatcher));
+    lexer.matchers.push(Rc::new(WhitespaceMatcher));
 
     lexer.matchers.push(
       Rc::new(
@@ -103,8 +104,9 @@ impl<'l> Iterator for Lexer<'l> {
     };
 
     match token.token_type {
-      TokenType::EOF => None,
-      _              => Some(Ok(token)),
+      TokenType::EOF        => None,
+      TokenType::Whitespace => self.next(),
+      _                     => Some(Ok(token)),
     }
   }
 }

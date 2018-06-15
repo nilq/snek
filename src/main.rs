@@ -10,7 +10,26 @@ use snek::parser::*;
 use snek::visitor::*;
 
 fn main() {
-  let testing = r#"
+  let content = r#"
 
   "#;
+
+  let source = Source::from("<static>", content.lines().map(|x| x.into()).collect::<Vec<String>>());
+  let lexer  = Lexer::default(content.chars().collect(), &source);
+
+  let mut tokens = Vec::new();
+
+  for token_result in lexer {
+    if let Ok(token) = token_result {
+      tokens.push(token)
+    } else {
+      return
+    }
+  }
+
+  let tokens_ref = tokens.iter().map(|x| &*x).collect::<Vec<&Token>>();
+
+  let mut parser = Parser::new(tokens_ref, &source);
+
+  println!("{:#?}", parser.parse().unwrap_or(Vec::new()));
 }
