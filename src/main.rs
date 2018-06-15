@@ -11,6 +11,13 @@ use snek::visitor::*;
 
 fn main() {
   let content = r#"
+fib :: fun(a: int) -> int {
+  if a < 3 {
+    a
+  }
+
+  fib(a - 1) + fib(a - 2)
+}
   "#;
 
   let source = Source::from("<static.wu>", content.lines().map(|x| x.into()).collect::<Vec<String>>());
@@ -29,6 +36,19 @@ fn main() {
   let tokens_ref = tokens.iter().map(|x| &*x).collect::<Vec<&Token>>();
 
   let mut parser = Parser::new(tokens_ref, &source);
+  
+  match parser.parse() {
+    Ok(ast) => {
+      println!("{:#?}", ast);
+  
+      let mut visitor = Visitor::new(&source, &ast);
 
-  println!("{:#?}", parser.parse().unwrap_or(Vec::new()));
+      match visitor.visit() {
+        Ok(_) => (),
+        _     => ()
+      }
+    },
+
+    _ => (),
+  }
 }
