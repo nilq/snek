@@ -11,10 +11,9 @@ use snek::visitor::*;
 
 fn main() {
   let content = r#"
-
   "#;
 
-  let source = Source::from("<static>", content.lines().map(|x| x.into()).collect::<Vec<String>>());
+  let source = Source::from("<static.wu>", content.lines().map(|x| x.into()).collect::<Vec<String>>());
   let lexer  = Lexer::default(content.chars().collect(), &source);
 
   let mut tokens = Vec::new();
