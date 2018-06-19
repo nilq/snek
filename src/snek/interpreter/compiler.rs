@@ -70,6 +70,104 @@ impl<'c> Compiler<'c> {
       }
     }
   }
+
+  fn fetch_local(&mut self, name: &str) -> Result<u32, ()> {
+    self.locals.get(name).map(|i| *i).ok_or(
+      response!(
+        Wrong(format!("can't get undeclared local `{}`", name))
+      )
+    )
+  }
+
+  fn emit(&mut self, instr: Instruction) {
+    self.code.push(instr)
+  }
+
+  fn emit_local_constant(&mut self, value: Value) -> Result<(), ()> {
+    let index = self.consts.len();
+
+    if index > u32::max_value() as usize {
+      Err(
+        response!(
+          Wrong("constant overflow"),
+          self.source.file
+        )
+      )
+    } else {
+      let index = index as u32;
+
+      self.consts.push(value);
+      self.emit(Instruction::LoadConst(index));
+
+      Ok(())
+    }
+  }
+
+  fn emit_branch_false(&mut self) -> JumpPatch {
+    let result = JumpPatch(self.code.len());
+
+    self.emit(Instruction::BranchFalse(0));
+    result
+  }
+
+  fn emit_branch_true(&mut self) -> JumpPatch {
+    let result = JumpPatch(self.code.len());
+
+    self.emit(Instruction::BranchTrue(0));
+    result
+  }
+
+  fn save_branch_target(&self) -> BranchTarget {
+    BranchTarget(self.code.len())
+  }
+
+  fn patch_jump(&mut self, patch: JumpPatch) -> Result<(), ()> {
+    let current    = self.code.len();
+    let branch_pos = patch.0;
+    let delta      = (current as isize) - (branch_pos as isize);
+
+    if delta > i32::max_value() as isize || delta < i32::min_value() as isize {
+      Err(
+        response!(
+          Wrong("branching too far"),
+          self.source.file
+        )
+      )
+    } else {
+      let delta = delta as i32;
+
+      match self.code[branch_pos] {
+        Instruction::Jump(_)        => self.code[branch_pos] = Instruction::Jump(delta),
+        Instruction::BranchTrue(_)  => self.code[branch_pos] = Instruction::BranchTrue(delta),
+        Instruction::BranchFalse(_) => self.code[branch_pos] = Instruction::BranchFalse(delta),
+      
+        _ => unreachable!(),
+      }
+
+      Ok(())
+    }
+  }
+
+  fn emit_jump_to(&mut self, target: BranchTarget) -> Result<(), ()> {
+    let current = self.code.len();
+    let BranchTarget(target) = target;
+    let delta = target as isize - current as isize;
+
+
+    if delta > i32::max_value() as isize || delta < i32::min_value() as isize {
+      Err(
+        response!(
+          Wrong("branching too far"),
+          self.source.file
+        )
+      )
+    } else {
+      let delta = delta as i32;
+      self.emit(Instruction::Jump(delta));
+
+      Ok(())
+    }
+  }
 }
 
 
