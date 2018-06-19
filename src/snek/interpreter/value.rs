@@ -21,6 +21,7 @@ pub enum Value {
   Char(char),
   Bool(bool),
   HeapValue(*mut HeapValue),
+  Nil,
 }
 
 impl Value {
@@ -53,7 +54,9 @@ impl Hash for Value {
       Char(c) => {
         state.write_u8(3);
         state.write_u8(c as u8)
-      }
+      },
+
+      Nil => state.write_u8(0),
     }
   }
 }
