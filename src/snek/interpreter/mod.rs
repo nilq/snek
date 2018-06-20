@@ -3,6 +3,7 @@ pub mod vm;
 pub mod compiler;
 
 use super::*;
+use super::parser::*;
 
 pub use self::value::*;
 pub use self::vm::*;

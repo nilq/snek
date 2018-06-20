@@ -33,7 +33,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "->", "struct", "fun", "funky", "if", "elif", "else", "return", "continue", "break"
+          "->", "struct", "fun", "funky", "if", "elif", "else", "return", "continue", "break", "as"
         ])
       )
     );

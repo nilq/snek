@@ -1,10 +1,9 @@
 use super::*;
 
-use std::rc::Rc;
 use std::ptr;
 
 pub struct Call {
-  locals: Rc<[Value]>,
+  locals: Box<[Value]>,
   ip:     usize,
   func:   *const CompiledBlock,
 }
@@ -15,8 +14,10 @@ pub struct Call {
 pub enum Instruction {
   Add,
   Sub,
-  Rem,
+  Mul,
   Div,
+  Mod,
+  Concat,
 
   Neg,
 
@@ -44,7 +45,8 @@ pub enum Instruction {
 
 
 pub struct VirtualMachine {
-  stack: Vec<Value>,
+  pub stack: Vec<Value>,
+
   calls: Vec<Call>,
 
   pub next: *mut HeapValue,
@@ -121,8 +123,43 @@ impl VirtualMachine {
 
         Pop => { self.stack.pop().unwrap(); },
 
+        Add => match_binop! {
+          (Int(a), Int(b))       => { Int(a + b) }
+          (Double(a), Double(b)) => { Double(a + b) }
+        },
+
+        Sub => match_binop! {
+          (Int(a), Int(b))       => { Int(a - b) }
+          (Double(a), Double(b)) => { Double(a - b) }
+        },
+
+        Mul => match_binop! {
+          (Int(a), Int(b))       => { Int(a * b) }
+          (Double(a), Double(b)) => { Double(a * b) }
+        },
+
+        Div => match_binop! {
+          (Int(a), Int(b))       => { Int(a / b) }
+          (Double(a), Double(b)) => { Double(a / b) }
+        },
+
+        Mod => match_binop! {
+          (Int(a), Int(b))       => { Int(a % b) }
+          (Double(a), Double(b)) => { Double(a % b) }
+        },
+
+        Return => {
+          if let Some(call_info) = self.calls.pop() {
+            fun    = unsafe { &*call_info.func };
+            locals = call_info.locals;
+            ip     = call_info.ip
+          } else {
+            break
+          }
+        }
+
         _ => (),
-      },
+      }
 
       ip = ip.wrapping_add(1)
     }

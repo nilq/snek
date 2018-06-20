@@ -14,9 +14,9 @@ pub struct HeapValue {
 
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum Value {
-  Int(i64),
+  Int(i128),
   Double(f64),
   Char(char),
   Bool(bool),

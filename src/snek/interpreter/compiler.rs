@@ -3,14 +3,24 @@ use super::error::Response::Wrong;
 use super::source::Source;
 
 
+use std::mem;
+
 use std::collections::HashMap;
-use std::rc::Rc;
 
 #[derive(Clone, Copy)]
 struct JumpPatch(usize);
 
 #[derive(Clone, Copy)]
 struct BranchTarget(usize);
+
+
+
+pub struct CompiledBlock {
+  pub name:   String,
+  pub code:   Box<[Instruction]>,
+  pub consts: Vec<Value>,
+  pub locals: Box<[String]>,
+}
 
 
 
@@ -72,18 +82,14 @@ impl<'c> Compiler<'c> {
   }
 
   fn fetch_local(&mut self, name: &str) -> Result<u32, ()> {
-    self.locals.get(name).map(|i| *i).ok_or(
-      response!(
-        Wrong(format!("can't get undeclared local `{}`", name))
-      )
-    )
+    Ok(self.locals.get(name).map(|i| *i).unwrap())
   }
 
   fn emit(&mut self, instr: Instruction) {
     self.code.push(instr)
   }
 
-  fn emit_local_constant(&mut self, value: Value) -> Result<(), ()> {
+  fn emit_load_constant(&mut self, value: Value) -> Result<(), ()> {
     let index = self.consts.len();
 
     if index > u32::max_value() as usize {
@@ -168,13 +174,95 @@ impl<'c> Compiler<'c> {
       Ok(())
     }
   }
-}
 
 
 
-pub struct CompiledBlock {
-  pub name:   String,
-  pub code:   Rc<[Instruction]>,
-  pub consts: Vec<Value>,
-  pub locals: Rc<[String]>,
+  fn compile_statement(&mut self, statement: &'c Statement<'c>) -> Result<(), ()> {
+    use self::StatementNode::*;
+    use self::ExpressionNode::*;
+    
+    match statement.node {
+      Variable(_, ref left, ref right) => {
+        if let Identifier(ref name) = left.node {
+          if let Some(ref right) = *right {
+            self.compile_expression(&*right)?;
+
+            let index = self.declare_local(name)?;
+
+            self.emit(Instruction::StoreLocal(index))
+          } else {
+            self.declare_local(name)?;
+          }
+        }
+      },
+
+      Expression(ref expression) => self.compile_expression(expression)?,
+
+      _ => (),
+    }
+
+    Ok(())
+  }
+
+  fn compile_expression(&mut self, expression: &'c Expression<'c>) -> Result<(), ()> {
+    use self::ExpressionNode::*;
+
+    match expression.node {
+      Int(a)    => self.emit_load_constant(Value::Int(a as i128))?,
+      Double(a) => self.emit_load_constant(Value::Double(a))?,
+
+      Binary(ref left, ref op, ref right) => {
+        self.compile_expression(&**left)?;
+        self.compile_expression(&**right)?;
+
+        use self::Operator::*;
+
+        match *op {
+          Add    => self.emit(Instruction::Add),
+          Sub    => self.emit(Instruction::Sub),
+          Mul    => self.emit(Instruction::Mul),
+          Div    => self.emit(Instruction::Div),
+          Mod    => self.emit(Instruction::Mod),
+          _   => (),
+        }
+      },
+
+      Identifier(ref name) => {
+        println!("herer");
+
+        let index = self.fetch_local(name)?;
+        self.emit(Instruction::LoadLocal(index))
+      },
+
+      _ => (),
+    }
+
+    Ok(())
+  }
+
+
+
+  pub fn compile_main(&mut self, block: &'c Vec<Statement<'c>>, name: &str) -> Result<CompiledBlock, ()> {
+    for element in block {
+      self.compile_statement(element)?
+    }
+
+    self.emit_load_constant(Value::Nil)?;
+    self.code.push(Instruction::Return);
+
+    let mut local_names = vec![String::new(); self.locals.len()];
+
+    for (name, i) in self.locals.drain() {
+      local_names[i as usize] = name
+    }
+
+    Ok(
+      CompiledBlock {
+        name:   name.to_string(),
+        code:   mem::replace(&mut self.code, Vec::new()).into_boxed_slice(),
+        consts: mem::replace(&mut self.consts, Vec::new()),
+        locals: local_names.into_boxed_slice()
+      }
+    )
+  }
 }

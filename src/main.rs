@@ -8,16 +8,12 @@ mod snek;
 use snek::lexer::*;
 use snek::parser::*;
 use snek::visitor::*;
+use snek::interpreter::*;
 
 fn main() {
   let content = r#"
-fib :: fun(a: int) -> int {
-  if a < 3 {
-    a
-  }
-
-  fib(a - 1) + fib(a - 2)
-}
+foo := 1000
+bar := (foo / 3)
   "#;
 
   let source = Source::from("<static.wu>", content.lines().map(|x| x.into()).collect::<Vec<String>>());
@@ -44,7 +40,14 @@ fib :: fun(a: int) -> int {
       let mut visitor = Visitor::new(&source, &ast);
 
       match visitor.visit() {
-        Ok(_) => (),
+        Ok(_) => {
+          let mut vm = VirtualMachine::new();
+          let block  = Compiler::new(&mut vm, &source).compile_main(&ast, "entry").unwrap();
+
+          vm.execute(&block);
+
+          println!("{:#?}", vm.stack)
+        },
         _     => ()
       }
     },
