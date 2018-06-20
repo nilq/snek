@@ -228,11 +228,64 @@ impl<'c> Compiler<'c> {
       },
 
       Identifier(ref name) => {
-        println!("herer");
-
         let index = self.fetch_local(name)?;
         self.emit(Instruction::LoadLocal(index))
       },
+
+      Block(ref content) => {
+        for element in content {
+          self.compile_statement(&element)?
+        }
+
+        self.emit(Instruction::Return)
+      },
+
+      Function(ref params, _, ref body) => {
+        let function = {
+          let mut locals = HashMap::<String, u32>::new();
+
+          for (i, param) in params.iter().enumerate() {
+            match param.node {
+              StatementNode::Variable(_, ref left, _) => {
+                if let Identifier(ref name) = left.node {
+                  locals.insert(name.to_owned(), i as u32);
+                }
+              },
+
+              _ => unimplemented!()
+            }
+          }
+
+          let mut compiler = Compiler {
+            vm: self.vm,
+
+            locals,
+
+            code:   Vec::new(),
+            consts: Vec::new(),
+
+            source: self.source,
+          };
+
+          compiler.compile_main(&vec!(Statement::new(StatementNode::Expression((**body).clone()), body.pos.clone())), "")?
+        };
+
+        let func_value = self.vm.allocate(HeapValueType::Function(function));
+
+        self.emit_load_constant(func_value)?;
+      }
+
+      Call(ref called, ref args) => {
+        let args_count = args.len() as u8;
+
+        self.compile_expression(&**called)?;
+
+        for arg in args.iter() {
+          self.compile_expression(&*arg)?
+        }
+
+        self.emit(Instruction::Call(args_count))
+      }
 
       _ => (),
     }

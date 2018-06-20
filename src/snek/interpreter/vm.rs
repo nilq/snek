@@ -1,8 +1,9 @@
 use super::*;
 
 use std::ptr;
+use std::mem;
 
-pub struct Call {
+pub struct CallInfo {
   locals: Box<[Value]>,
   ip:     usize,
   func:   *const CompiledBlock,
@@ -47,7 +48,7 @@ pub enum Instruction {
 pub struct VirtualMachine {
   pub stack: Vec<Value>,
 
-  calls: Vec<Call>,
+  calls: Vec<CallInfo>,
 
   pub next: *mut HeapValue,
 }
@@ -156,6 +157,47 @@ impl VirtualMachine {
           } else {
             break
           }
+        },
+
+        Call(args) => {
+          let args = args as usize;
+
+          let func_index = self.stack.len() - args - 1;
+          let func_val   = self.stack[func_index];
+
+          let func_backup = fun;
+
+          if let Value::HeapValue(pointer) = func_val {
+            let object = unsafe { &*pointer };
+
+            if let HeapValueType::Function(ref function) = object.kind {
+              fun = function
+            }
+          }
+
+          let mut new_locals = vec![Value::Nil; fun.locals.len()].into_boxed_slice();
+
+          for i in 0 .. args {
+            new_locals[i] = self.stack[func_index + i + 1]
+          }
+
+          for _ in 0 .. args + 1 {
+            self.stack.pop();
+          }
+
+          let old_locals = mem::replace(&mut locals, new_locals);
+
+          self.calls.push(
+            CallInfo {
+              ip,
+              locals: old_locals,
+              func: func_backup,
+            }
+          );
+
+          ip = 0;
+
+          continue
         }
 
         _ => (),
@@ -163,5 +205,22 @@ impl VirtualMachine {
 
       ip = ip.wrapping_add(1)
     }
+  }
+
+
+
+  pub fn allocate(&mut self, kind: HeapValueType) -> Value {
+    let object = Box::into_raw(
+      Box::new(
+        HeapValue {
+          next: self.next,
+          kind,
+        }
+      )
+    );
+
+    self.next = object;
+
+    Value::HeapValue(object)
   }
 }

@@ -1,14 +1,16 @@
 use std::hash::*;
 use std::mem;
 
+use super::*;
+
 pub enum HeapValueType {
   Str(Box<str>),
   Array(Vec<Value>),
+  Function(CompiledBlock),
 }
 
 pub struct HeapValue {
   pub next:   *mut HeapValue,
-  pub marked: bool,
   pub kind:   HeapValueType,
 }
 

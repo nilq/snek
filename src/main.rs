@@ -12,8 +12,13 @@ use snek::interpreter::*;
 
 fn main() {
   let content = r#"
-foo := 1000
-bar := (foo / 3)
+foo := fun(a: int) -> int {
+  a + 100
+}
+
+bar := foo(10)
+
+bar
   "#;
 
   let source = Source::from("<static.wu>", content.lines().map(|x| x.into()).collect::<Vec<String>>());
